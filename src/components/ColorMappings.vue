@@ -50,6 +50,15 @@ function onSelectorInput(mappingId: string, event: Event) {
       </button>
     </div>
 
+    <div class="mappings-hint">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="10" />
+        <line x1="12" y1="16" x2="12" y2="12" />
+        <line x1="12" y1="8" x2="12.01" y2="8" />
+      </svg>
+      <span>颜色映射规则将写入导出的CSS代码中。跨域iframe预览时无法实时注入，请在同域环境下应用导出的CSS验证效果。</span>
+    </div>
+
     <div v-if="mappings.length === 0" class="empty-state">
       <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
         <circle cx="13.5" cy="6.5" r=".5" />
@@ -152,6 +161,24 @@ function onSelectorInput(mappingId: string, event: Event) {
   display: flex;
   flex-direction: column;
   gap: 14px;
+}
+
+.mappings-hint {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  background: rgba(245, 158, 11, 0.06);
+  border: 1px solid rgba(245, 158, 11, 0.2);
+  border-radius: 7px;
+  font-size: 11px;
+  color: #fbbf24;
+  line-height: 1.5;
+}
+
+.mappings-hint svg {
+  flex-shrink: 0;
+  margin-top: 1px;
 }
 
 .control-header {

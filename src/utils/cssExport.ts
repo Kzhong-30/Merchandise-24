@@ -4,7 +4,7 @@ export function generateFilterCSS(params: FilterParams): string {
   const filters: string[] = []
 
   if (params.invert) {
-    filters.push('invert(1)')
+    filters.push('invert(1) hue-rotate(180deg)')
   }
   if (params.hueRotate !== 0) {
     filters.push(`hue-rotate(${params.hueRotate}deg)`)
@@ -20,6 +20,10 @@ export function generateFilterCSS(params: FilterParams): string {
   }
 
   return filters.join(' ')
+}
+
+export function generateReverseFilterCSS(): string {
+  return 'invert(1) hue-rotate(180deg)'
 }
 
 export function generateRootVariables(params: FilterParams): string {
@@ -67,6 +71,7 @@ export function generateFullDarkModeCSS(
 
   if (params.invert) {
     const filterRule = generateFilterCSS(params)
+    const reverseFilter = generateReverseFilterCSS()
     const wrapper = useMediaQuery
       ? `@media (prefers-color-scheme: dark) {
   html {
@@ -76,7 +81,7 @@ export function generateFullDarkModeCSS(
   img, picture, video, canvas, svg, iframe,
   [style*="background-image"],
   [data-darkmode-ignore] {
-    filter: ${filterRule} invert(1) hue-rotate(180deg);
+    filter: ${reverseFilter};
   }
 }`
       : `html.dark {
@@ -86,7 +91,7 @@ export function generateFullDarkModeCSS(
 html.dark img, html.dark picture, html.dark video, html.dark canvas, html.dark svg, html.dark iframe,
 html.dark [style*="background-image"],
 html.dark [data-darkmode-ignore] {
-  filter: ${filterRule} invert(1) hue-rotate(180deg);
+  filter: ${reverseFilter};
 }`
 
     lines.push(wrapper)

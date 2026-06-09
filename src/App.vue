@@ -20,6 +20,7 @@ const {
   activeConfigId,
   currentConfigName,
   detectionResult,
+  detectionCorsLimited,
   systemPrefersDark,
   currentUrl,
   filterStyle,
@@ -204,7 +205,6 @@ function useQuickUrl(urlStr: string) {
               ref="iframeRef"
               :src="currentUrl"
               class="preview-iframe"
-              :class="{ 'reverse-filter': filterParams.invert }"
               sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox"
               @load="onIframeLoad"
               @error="onIframeError"
@@ -218,7 +218,7 @@ function useQuickUrl(urlStr: string) {
               <line x1="12" y1="16" x2="12" y2="12" />
               <line x1="12" y1="8" x2="12.01" y2="8" />
             </svg>
-            <span>使用 CSS filter 反转模拟暗黑模式，图片和视频会自动二次反转保持正常显示</span>
+            <span>使用 CSS filter 外层反转模拟暗黑模式。<strong>跨域场景下iframe内部图片/视频无法单独反向还原</strong>，请配合导出的CSS代码在同域环境中验证完整效果。</span>
           </div>
         </div>
       </div>
@@ -282,6 +282,7 @@ function useQuickUrl(urlStr: string) {
             <DetectionPanel
               :result="detectionResult"
               :system-prefers-dark="systemPrefersDark"
+              :cors-limited="detectionCorsLimited"
             />
           </div>
 
@@ -663,10 +664,6 @@ body {
   height: 100%;
   border: none;
   display: block;
-}
-
-.preview-iframe.reverse-filter {
-  filter: hue-rotate(180deg);
 }
 
 .filter-hint {

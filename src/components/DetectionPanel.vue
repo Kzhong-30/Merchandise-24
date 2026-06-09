@@ -5,6 +5,7 @@ import type { DetectionResult } from '../types'
 const props = defineProps<{
   result: DetectionResult
   systemPrefersDark: boolean
+  corsLimited: boolean
 }>()
 
 const supportScore = computed(() => {
@@ -27,6 +28,18 @@ const supportLevel = computed(() => {
 
 <template>
   <div class="detection-panel">
+    <div v-if="corsLimited" class="cors-warning">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+        <line x1="12" y1="9" x2="12" y2="13" />
+        <line x1="12" y1="17" x2="12.01" y2="17" />
+      </svg>
+      <div class="cors-warning-text">
+        <strong>跨域安全策略限制</strong>
+        <span>因目标站点跨域安全策略，本次检测结果可能不准确（CSS样式表、class属性等无法完整读取）</span>
+      </div>
+    </div>
+
     <div class="control-header">
       <h3 class="control-title">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -159,6 +172,40 @@ const supportLevel = computed(() => {
   display: flex;
   flex-direction: column;
   gap: 14px;
+}
+
+.cors-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px;
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 8px;
+  color: #f87171;
+}
+
+.cors-warning svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.cors-warning-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.cors-warning-text strong {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.cors-warning-text span {
+  color: #fca5a5;
+  font-size: 11px;
 }
 
 .control-header {

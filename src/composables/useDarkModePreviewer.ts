@@ -1,4 +1,4 @@
-import { ref, reactive, computed, watch, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import type { DarkModeConfig, FilterParams, ColorMapping, DetectionResult } from '../types'
 import { generateId, normalizeUrl, getDomainFromUrl } from '../utils/colorUtils'
 import {
@@ -9,7 +9,10 @@ import {
   setActiveConfigId,
   getConfigByUrl,
 } from '../utils/storage'
-import { generateFullDarkModeCSS } from '../utils/cssExport'
+import {
+  generateFullDarkModeCSS,
+  generateFilterCSS,
+} from '../utils/cssExport'
 
 export function useDarkModePreviewer() {
   const url = ref('')
@@ -39,26 +42,13 @@ export function useDarkModePreviewer() {
     mediaQueries: [],
   })
 
+  const detectionCorsLimited = ref(false)
   const systemPrefersDark = ref(false)
 
   const currentUrl = computed(() => normalizeUrl(url.value))
   const currentDomain = computed(() => getDomainFromUrl(url.value))
 
-  const filterStyle = computed(() => {
-    const filters: string[] = []
-    if (filterParams.invert) filters.push('invert(1) hue-rotate(180deg)')
-    if (filterParams.hueRotate !== 0) filters.push(`hue-rotate(${filterParams.hueRotate}deg)`)
-    if (filterParams.brightness !== 100) filters.push(`brightness(${filterParams.brightness}%)`)
-    if (filterParams.contrast !== 100) filters.push(`contrast(${filterParams.contrast}%)`)
-    if (filterParams.saturate !== 100) filters.push(`saturate(${filterParams.saturate}%)`)
-    return filters.join(' ')
-  })
-
-  const reverseFilterStyle = computed(() => {
-    const filters: string[] = []
-    if (filterParams.invert) filters.push('invert(1) hue-rotate(180deg)')
-    return filters.join(' ')
-  })
+  const filterStyle = computed(() => generateFilterCSS(filterParams))
 
   const exportedCSS = computed(() => {
     return generateFullDarkModeCSS(filterParams, colorMappings.value, true)
@@ -98,10 +88,14 @@ export function useDarkModePreviewer() {
   }
 
   function detectDarkModeSupport() {
+    detectionCorsLimited.value = false
     try {
       const win = iframeRef.value?.contentWindow
       const doc = iframeRef.value?.contentDocument
-      if (!win || !doc) return
+      if (!win || !doc) {
+        detectionCorsLimited.value = true
+        return
+      }
 
       const result: DetectionResult = {
         hasPrefersColorScheme: false,
@@ -111,17 +105,23 @@ export function useDarkModePreviewer() {
         mediaQueries: [],
       }
 
-      const htmlEl = doc.documentElement
-      result.hasDarkClass =
-        htmlEl.classList.contains('dark') ||
-        htmlEl.classList.contains('theme-dark') ||
-        doc.body.classList.contains('dark') ||
-        doc.body.classList.contains('theme-dark')
+      let corsHit = false
 
-      result.hasDataTheme =
-        htmlEl.getAttribute('data-theme') === 'dark' ||
-        doc.body.getAttribute('data-theme') === 'dark' ||
-        htmlEl.hasAttribute('data-bs-theme')
+      const htmlEl = doc.documentElement
+      try {
+        result.hasDarkClass =
+          htmlEl.classList.contains('dark') ||
+          htmlEl.classList.contains('theme-dark') ||
+          doc.body.classList.contains('dark') ||
+          doc.body.classList.contains('theme-dark')
+
+        result.hasDataTheme =
+          htmlEl.getAttribute('data-theme') === 'dark' ||
+          doc.body.getAttribute('data-theme') === 'dark' ||
+          htmlEl.hasAttribute('data-bs-theme')
+      } catch {
+        corsHit = true
+      }
 
       const styles = doc.styleSheets
       for (let i = 0; i < Math.min(styles.length, 20); i++) {
@@ -140,30 +140,35 @@ export function useDarkModePreviewer() {
             }
           }
         } catch {
-          // CORS issues
+          corsHit = true
         }
       }
 
-      const computedStyle = win.getComputedStyle(htmlEl)
-      const vars: string[] = []
-      for (let i = 0; i < Math.min(50, computedStyle.length); i++) {
-        const prop = computedStyle[i]
-        if (prop.startsWith('--')) {
-          if (
-            prop.toLowerCase().includes('dark') ||
-            prop.toLowerCase().includes('bg') ||
-            prop.toLowerCase().includes('color') ||
-            prop.toLowerCase().includes('theme')
-          ) {
-            vars.push(prop)
+      try {
+        const computedStyle = win.getComputedStyle(htmlEl)
+        const vars: string[] = []
+        for (let i = 0; i < Math.min(50, computedStyle.length); i++) {
+          const prop = computedStyle[i]
+          if (prop.startsWith('--')) {
+            if (
+              prop.toLowerCase().includes('dark') ||
+              prop.toLowerCase().includes('bg') ||
+              prop.toLowerCase().includes('color') ||
+              prop.toLowerCase().includes('theme')
+            ) {
+              vars.push(prop)
+            }
           }
         }
+        result.cssVariables = vars.slice(0, 20)
+      } catch {
+        corsHit = true
       }
-      result.cssVariables = vars.slice(0, 20)
 
+      detectionCorsLimited.value = corsHit
       detectionResult.value = result
     } catch {
-      // Silent fail for CORS
+      detectionCorsLimited.value = true
     }
   }
 
@@ -267,16 +272,6 @@ export function useDarkModePreviewer() {
     }
   })
 
-  watch(
-    () => [filterParams.invert, filterParams.brightness, filterParams.contrast, filterParams.hueRotate, filterParams.saturate],
-    () => {
-      if (activeConfigId.value) {
-        // Auto-save when config is active
-      }
-    },
-    { deep: true }
-  )
-
   return {
     url,
     iframeRef,
@@ -289,11 +284,11 @@ export function useDarkModePreviewer() {
     activeConfigId,
     currentConfigName,
     detectionResult,
+    detectionCorsLimited,
     systemPrefersDark,
     currentUrl,
     currentDomain,
     filterStyle,
-    reverseFilterStyle,
     exportedCSS,
     exportedCSSClassBased,
     loadUrl,
