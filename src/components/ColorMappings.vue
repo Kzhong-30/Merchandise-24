@@ -11,10 +11,22 @@ const emit = defineEmits<{
   (e: 'update', id: string, updates: Partial<ColorMapping>): void
 }>()
 
-const APPLY_TO_OPTIONS: Array<{ value: ColorMappingApplyTo; label: string }> = [
-  { value: 'both', label: '两者' },
-  { value: 'color', label: '文字' },
-  { value: 'background', label: '背景' },
+const APPLY_TO_OPTIONS: Array<{ value: ColorMappingApplyTo; label: string; icon: string }> = [
+  {
+    value: 'both',
+    label: '两者',
+    icon: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="14" height="14" rx="2" opacity="0.4"/><rect x="7" y="7" width="14" height="14" rx="2"/></svg>'
+  },
+  {
+    value: 'color',
+    label: '文字',
+    icon: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7V4h16v3"/><path d="M9 20h6"/><path d="M12 4v16"/></svg>'
+  },
+  {
+    value: 'background',
+    label: '背景',
+    icon: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 20H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2z"/><path d="M7 10l3-3 4 4 3-3 3 3"/></svg>'
+  },
 ]
 
 function onCheckboxChange(mappingId: string, event: Event) {
@@ -167,7 +179,7 @@ function onApplyToChange(mappingId: string, value: ColorMappingApplyTo) {
               <line x1="12" y1="9" x2="12" y2="13" />
               <line x1="12" y1="17" x2="12.01" y2="17" />
             </svg>
-            留空将使用 body 兜底，避免通配符 * 导致的性能问题
+            留空将使用 body 兜底，避免通配符 * 导致的性能问题；多条空选择器会同时作用于 body 互相覆盖，请优先使用具体类名或标签名
           </p>
         </div>
 
@@ -182,9 +194,18 @@ function onApplyToChange(mappingId: string, value: ColorMappingApplyTo) {
               type="button"
               @click="onApplyToChange(mapping.id, opt.value)"
             >
-              {{ opt.label }}
+              <span class="segment-icon" v-html="opt.icon"></span>
+              <span>{{ opt.label }}</span>
             </button>
           </div>
+          <p v-if="(mapping.applyTo ?? 'both') === 'background'" class="applyto-hint">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="16" x2="12" y2="12" />
+              <line x1="12" y1="8" x2="12.01" y2="8" />
+            </svg>
+            已设为背景模式，对有 background-image 的元素请额外设置 background-blend-mode 或改用背景色替换方案
+          </p>
         </div>
       </div>
     </div>
@@ -518,7 +539,10 @@ function onApplyToChange(mappingId: string, value: ColorMappingApplyTo) {
 }
 
 .segment-btn {
-  padding: 5px 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px 5px 10px;
   font-size: 12px;
   font-weight: 500;
   background: transparent;
@@ -539,5 +563,31 @@ function onApplyToChange(mappingId: string, value: ColorMappingApplyTo) {
   background: var(--accent-color);
   color: white;
   box-shadow: 0 2px 8px rgba(139, 92, 246, 0.25);
+}
+
+.segment-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.85;
+}
+
+.applyto-hint {
+  display: flex;
+  align-items: flex-start;
+  gap: 5px;
+  margin: 6px 0 0;
+  padding: 8px 10px;
+  background: rgba(59, 130, 246, 0.06);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  border-radius: 6px;
+  font-size: 11px;
+  color: #60a5fa;
+  line-height: 1.4;
+}
+
+.applyto-hint svg {
+  flex-shrink: 0;
+  margin-top: 1px;
 }
 </style>

@@ -116,9 +116,26 @@ export function invertColorSmart(color: string): string {
  * 算法说明：
  * 1) 先把颜色转 HSL，L（明度）取 100 - L 做基础反色
  * 2) 再根据用户调整的 filter 参数进行微调：
- *    - brightness：采用 easeOutSqrt 非线性曲线，系数范围 10-20，避免高亮度区间过度偏移
- *    - contrast：使用以 0.5 为渐近上限的 tanh 变换，防止极端参数导致 L 值被推到 0/100 扎堆
- *    - saturate：100 以内线性放大，超过 150 启动 sigmoid 衰减，避免过饱和造成色偏
+ *
+ *   ┌─────────────────────┬───────────────┬──────────────────┬──────────────────────────────────────────┐
+ *   │ 系数名称            │ 当前值        │ 推荐调节范围     │ 影响效果                                 │
+ *   ├─────────────────────┼───────────────┼──────────────────┼──────────────────────────────────────────┤
+ *   │ BRIGHTNESS_COEFF    │ 17.5          │ 10.0 ~ 20.0      │ 亮度偏移曲线的最大振幅；值越大，brightness │
+ *   │ (easeOutSqrt 振幅)  │               │                  │ 参数对最终色的明度影响越强；过小会导致   │
+ *   │                     │               │                  │ 亮度滑块看起来无效                       │
+ *   ├─────────────────────┼───────────────┼──────────────────┼──────────────────────────────────────────┤
+ *   │ CONTRAST_CEILING    │ 0.48          │ 0.30 ~ 0.50      │ 对比度 tanh 变换的渐近上限；值越接近 0.5 │
+ *   │ (tanh 渐近上限)     │               │                  │ 极端 contrast 时越容易把 L 推向 0/100；  │
+ *   │                     │               │                  │ 设为 0.48 可避免完全溢出同时保留对比幅度 │
+ *   ├─────────────────────┼───────────────┼──────────────────┼──────────────────────────────────────────┤
+ *   │ SATURATE_GROWTH     │ 3.0           │ 1.5  ~ 5.0       │ sigmoid 衰减曲线的斜率；值越大，从线性   │
+ *   │ (sigmoid 斜率)      │               │                  │ 切换到衰减的过渡越陡；过小则 200 仍接近 │
+ *   │                     │               │                  │ 线性放大，过饱和问题仍存在                │
+ *   ├─────────────────────┼───────────────┼──────────────────┼──────────────────────────────────────────┤
+ *   │ SATURATE_CAP (推导) │ ≈ 180         │ 170 ~ 190        │ saturate 参数的等效封顶值（sigmoid 渐近）│
+ *   │                     │               │                  │ 由 GROWTH 和分界点决定，无需直接修改     │
+ *   └─────────────────────┴───────────────┴──────────────────┴──────────────────────────────────────────┘
+ *
  * 3) 对极暗(L<7)或极亮(L>93)颜色直接走纯 RGB 255-x 兜底，保持黑白边界的正确性
  */
 export function smartInvertColorWithFilter(
@@ -128,35 +145,38 @@ export function smartInvertColorWithFilter(
   const hsl = hexToHsl(color)
   if (!hsl) return color
 
+  const BRIGHTNESS_COEFF = 17.5
+  const CONTRAST_CEILING = 0.48
+  const SATURATE_GROWTH = 3.0
+
   let { h, s, l } = hsl
   l = 100 - l
 
   // 明度微调：采用 easeOutSqrt 非线性曲线，避免极端参数下的色值失真
-  // brightness: 100 -> 0 偏移,  50 或 150 -> 约 17.5 的最大偏移（系数 17.5，非线性）
-  const brightnessNorm = (filter.brightness - 100) / 50 // -> [-1, 1]
+  // 归一化：brightness 50 -> -1,  100 -> 0,  150 -> +1
+  const brightnessNorm = (filter.brightness - 100) / 50
   const brightnessSign = Math.sign(brightnessNorm)
   const brightnessEased = brightnessSign * Math.sqrt(Math.abs(brightnessNorm))
-  const brightnessDelta = brightnessEased * 17.5
+  const brightnessDelta = brightnessEased * BRIGHTNESS_COEFF
   l = Math.max(0, Math.min(100, l - brightnessDelta))
 
-  // 对比度：以 0.5 为渐近上限的 tanh 变换，避免极端参数导致 0/100 扎堆溢出
-  // contrast: 100 -> 0,  50 -> 约 -0.38,  150 -> 约 +0.38
-  const contrastNorm = (filter.contrast - 100) / 100 // -> [-0.5, 0.5]
-  const contrastTanh = Math.tanh(2 * contrastNorm) / Math.tanh(1) // 归一化到约 [-0.76, 0.76]
-  const contrastMax = 0.48 // 渐近上限 0.48，永不越过 0.5
-  const contrastFactor = contrastTanh * contrastMax / 0.76
+  // 对比度：以 CONTRAST_CEILING 为渐近上限的 tanh 变换，避免极端参数导致 0/100 扎堆溢出
+  // 归一化：contrast 50 -> -0.5,  100 -> 0,  150 -> +0.5
+  const contrastNorm = (filter.contrast - 100) / 100
+  const contrastTanh = Math.tanh(2 * contrastNorm) / Math.tanh(1)
+  const contrastFactor = contrastTanh * CONTRAST_CEILING / 0.76
   l = 50 + (l - 50) * (1 + contrastFactor)
   l = Math.max(0, Math.min(100, l))
 
-  // 饱和度：100 以内线性放大，100-150 线性，>150 启动 sigmoid 衰减到最大 180
+  // 饱和度：≤150 线性放大，>150 启动 sigmoid 衰减（渐近≈180），避免过饱和造成色偏
   if (filter.saturate <= 150) {
     s = Math.min(100, s * filter.saturate / 100)
   } else {
-    // sigmoid 衰减：saturate = 150 -> 1.50,  200 -> 1.78 (约180时几乎封顶)
+    // t ∈ [0, 1] 对应 saturate [150, 200]
     const t = (filter.saturate - 150) / 50
-    const attenuated = 150 + 50 * (1 / (1 + Math.exp(-3 * t)) - 0.5) * 2
-    const scaled = s * attenuated / 100
-    s = Math.min(100, scaled)
+    // sigmoid: 当 t=0 时值≈150，t=1 时值≈150 + 50*0.953 ≈ 197.6（趋近于 200 下方）
+    const attenuated = 150 + 50 * (1 / (1 + Math.exp(-SATURATE_GROWTH * t)) - 0.5) * 2
+    s = Math.min(100, s * attenuated / 100)
   }
 
   // 边界兜底：极暗极亮直接走纯 RGB 255-x，保证黑白的正确性
