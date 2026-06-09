@@ -21,6 +21,7 @@ const {
   currentConfigName,
   detectionResult,
   detectionCorsLimited,
+  canInjectToIframe,
   systemPrefersDark,
   currentUrl,
   filterStyle,
@@ -182,6 +183,22 @@ function useQuickUrl(urlStr: string) {
                 {{ iframeError }}
               </div>
             </div>
+            <div v-if="url.trim()" class="inject-mode-badge" :class="{ full: canInjectToIframe, degraded: iframeLoaded && !canInjectToIframe }">
+              <svg v-if="canInjectToIframe" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+              <svg v-else-if="iframeLoaded" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                <line x1="12" y1="9" x2="12" y2="13" />
+                <line x1="12" y1="17" x2="12.01" y2="17" />
+              </svg>
+              <span v-if="canInjectToIframe">完全注入模式</span>
+              <span v-else-if="iframeLoaded">降级模式</span>
+              <span v-else>等待加载</span>
+              <div v-if="iframeLoaded && !canInjectToIframe" class="inject-tooltip">
+                <strong>跨域限制：</strong>无法向iframe内部注入媒体反向还原样式和颜色映射规则，这些功能在预览中暂不生效。请在同域或使用代理的环境下测试，或在导出CSS后应用到目标站点验证效果。
+              </div>
+            </div>
             <button
               class="refresh-btn"
               :disabled="isLoading"
@@ -282,7 +299,7 @@ function useQuickUrl(urlStr: string) {
             <DetectionPanel
               :result="detectionResult"
               :system-prefers-dark="systemPrefersDark"
-              :cors-limited="detectionCorsLimited"
+              :cors-limited="iframeLoaded && (!canInjectToIframe || detectionCorsLimited)"
             />
           </div>
 
@@ -609,6 +626,67 @@ body {
 .status.error {
   background: rgba(239, 68, 68, 0.1);
   color: var(--error);
+}
+
+.inject-mode-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  position: relative;
+  cursor: help;
+  transition: all 0.2s;
+  background: rgba(100, 116, 139, 0.1);
+  color: var(--text-muted);
+  border: 1px solid var(--border-color);
+}
+
+.inject-mode-badge.full {
+  background: rgba(16, 185, 129, 0.12);
+  color: #10b981;
+  border-color: rgba(16, 185, 129, 0.3);
+}
+
+.inject-mode-badge.degraded {
+  background: rgba(245, 158, 11, 0.12);
+  color: #f59e0b;
+  border-color: rgba(245, 158, 11, 0.3);
+}
+
+.inject-tooltip {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 280px;
+  padding: 10px 12px;
+  background: #1e1b2e;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  border-radius: 8px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+  font-size: 11px;
+  line-height: 1.5;
+  color: #fde68a;
+  z-index: 100;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(-4px);
+  animation: tooltipFadeIn 0.2s ease forwards;
+}
+
+@keyframes tooltipFadeIn {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.inject-tooltip strong {
+  color: #f59e0b;
+  display: block;
+  margin-bottom: 2px;
 }
 
 .loader {

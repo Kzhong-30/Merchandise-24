@@ -1,3 +1,5 @@
+import type { FilterParams } from '../types'
+
 export function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
   const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
   if (!result) return null
@@ -18,6 +20,17 @@ export function rgbToHex(r: number, g: number, b: number): string {
       })
       .join('')
   )
+}
+
+export function hexToHsl(hex: string): { h: number; s: number; l: number } | null {
+  const rgb = hexToRgb(hex)
+  if (!rgb) return null
+  return rgbToHsl(rgb.r, rgb.g, rgb.b)
+}
+
+export function hslToHex(h: number, s: number, l: number): string {
+  const rgb = hslToRgb(h, s, l)
+  return rgbToHex(rgb.r, rgb.g, rgb.b)
 }
 
 export function rgbToHsl(r: number, g: number, b: number): { h: number; s: number; l: number } {
@@ -95,6 +108,35 @@ export function invertColorSmart(color: string): string {
   const newL = 100 - hsl.l
   const newRgb = hslToRgb(hsl.h, hsl.s, newL)
   return rgbToHex(newRgb.r, newRgb.g, newRgb.b)
+}
+
+export function smartInvertColorWithFilter(
+  color: string,
+  filter: FilterParams
+): string {
+  const hsl = hexToHsl(color)
+  if (!hsl) return color
+
+  let { h, s, l } = hsl
+  l = 100 - l
+
+  if (l < 5) l = 5
+  if (l > 95) l = 95
+
+  const brightnessDelta = (filter.brightness - 100) / 100 * 25
+  l = Math.max(0, Math.min(100, l - brightnessDelta))
+
+  const contrastT = (filter.contrast - 100) / 100
+  l = 50 + (l - 50) * (1 + contrastT)
+  l = Math.max(0, Math.min(100, l))
+
+  s = Math.min(100, s * filter.saturate / 100)
+
+  if (l < 7 || l > 93) {
+    return invertColor(color)
+  }
+
+  return hslToHex(h, s, l)
 }
 
 export function isLightColor(color: string): boolean {

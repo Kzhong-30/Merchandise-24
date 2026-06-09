@@ -1,6 +1,6 @@
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, watch, onMounted } from 'vue'
 import type { DarkModeConfig, FilterParams, ColorMapping, DetectionResult } from '../types'
-import { generateId, normalizeUrl, getDomainFromUrl } from '../utils/colorUtils'
+import { generateId, normalizeUrl, getDomainFromUrl, smartInvertColorWithFilter } from '../utils/colorUtils'
 import {
   getAllConfigs,
   saveConfig,
@@ -12,7 +12,10 @@ import {
 import {
   generateFullDarkModeCSS,
   generateFilterCSS,
+  generateReverseFilterCSS,
 } from '../utils/cssExport'
+
+const INJECTED_STYLE_ID = '__dark_mode_previewer_injected_style__'
 
 export function useDarkModePreviewer() {
   const url = ref('')
@@ -44,6 +47,7 @@ export function useDarkModePreviewer() {
 
   const detectionCorsLimited = ref(false)
   const systemPrefersDark = ref(false)
+  const canInjectToIframe = ref(false)
 
   const currentUrl = computed(() => normalizeUrl(url.value))
   const currentDomain = computed(() => getDomainFromUrl(url.value))
@@ -72,18 +76,81 @@ export function useDarkModePreviewer() {
     }
     iframeLoaded.value = false
     iframeError.value = null
+    canInjectToIframe.value = false
     isLoading.value = true
+  }
+
+  function buildInjectedStyleContent(): string {
+    const lines: string[] = []
+
+    if (filterParams.invert) {
+      lines.push(`img, picture, video, svg, canvas, iframe,
+[style*="background-image"],
+[data-darkmode-ignore] {
+  filter: ${generateReverseFilterCSS()} !important;
+}`)
+      lines.push('')
+    }
+
+    const enabledMappings = colorMappings.value.filter((m) => m.enabled)
+    if (enabledMappings.length > 0) {
+      enabledMappings.forEach((m) => {
+        const selector = m.selector || '*'
+        lines.push(`${selector} {
+  color: ${m.toColor} !important;
+}`)
+      })
+      lines.push('')
+    }
+
+    return lines.join('\n')
+  }
+
+  function injectStylesToIframe(): void {
+    if (!canInjectToIframe.value) return
+    try {
+      const doc = iframeRef.value?.contentDocument
+      if (!doc) return
+
+      let styleEl = doc.getElementById(INJECTED_STYLE_ID) as HTMLStyleElement | null
+      if (!styleEl) {
+        styleEl = doc.createElement('style')
+        styleEl.id = INJECTED_STYLE_ID
+        styleEl.setAttribute('data-source', 'dark-mode-previewer')
+        doc.head.appendChild(styleEl)
+      }
+      styleEl.textContent = buildInjectedStyleContent()
+    } catch {
+      canInjectToIframe.value = false
+    }
+  }
+
+  function verifyInjectCapability(): boolean {
+    try {
+      const doc = iframeRef.value?.contentDocument
+      if (!doc) return false
+      const probe = doc.createElement('div')
+      probe.style.display = 'none'
+      doc.body.appendChild(probe)
+      doc.body.removeChild(probe)
+      return true
+    } catch {
+      return false
+    }
   }
 
   function onIframeLoad() {
     isLoading.value = false
     iframeLoaded.value = true
+    canInjectToIframe.value = verifyInjectCapability()
     detectDarkModeSupport()
+    injectStylesToIframe()
   }
 
   function onIframeError() {
     isLoading.value = false
     iframeLoaded.value = false
+    canInjectToIframe.value = false
     iframeError.value = '页面加载失败，可能是跨域限制或网址无效'
   }
 
@@ -184,11 +251,13 @@ export function useDarkModePreviewer() {
     filterParams.saturate = 100
   }
 
-  function addColorMapping(fromColor: string = '#ffffff', toColor: string = '#1a1a1a', selector: string = '') {
+  function addColorMapping(fromColor?: string, toColor?: string, selector: string = '') {
+    const defaultFrom = fromColor ?? '#ffffff'
+    const defaultTo = toColor ?? smartInvertColorWithFilter(defaultFrom, filterParams)
     colorMappings.value.push({
       id: generateId(),
-      fromColor,
-      toColor,
+      fromColor: defaultFrom,
+      toColor: defaultTo,
       selector,
       enabled: true,
     })
@@ -272,6 +341,21 @@ export function useDarkModePreviewer() {
     }
   })
 
+  watch(
+    () => [filterParams.invert],
+    () => {
+      injectStylesToIframe()
+    }
+  )
+
+  watch(
+    () => colorMappings.value,
+    () => {
+      injectStylesToIframe()
+    },
+    { deep: true }
+  )
+
   return {
     url,
     iframeRef,
@@ -285,6 +369,7 @@ export function useDarkModePreviewer() {
     currentConfigName,
     detectionResult,
     detectionCorsLimited,
+    canInjectToIframe,
     systemPrefersDark,
     currentUrl,
     currentDomain,
