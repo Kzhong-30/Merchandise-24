@@ -13,12 +13,15 @@ export interface DarkModeConfig {
   updatedAt: number
 }
 
+export type ColorMappingApplyTo = 'both' | 'color' | 'background'
+
 export interface ColorMapping {
   id: string
   fromColor: string
   toColor: string
   selector: string
   enabled: boolean
+  applyTo: ColorMappingApplyTo
 }
 
 export interface FilterParams {

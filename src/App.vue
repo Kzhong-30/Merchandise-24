@@ -195,7 +195,7 @@ function useQuickUrl(urlStr: string) {
               <span v-if="canInjectToIframe">完全注入模式</span>
               <span v-else-if="iframeLoaded">降级模式</span>
               <span v-else>等待加载</span>
-              <div v-if="iframeLoaded && !canInjectToIframe" class="inject-tooltip">
+              <div class="inject-tooltip">
                 <strong>跨域限制：</strong>无法向iframe内部注入媒体反向还原样式和颜色映射规则，这些功能在预览中暂不生效。请在同域或使用代理的环境下测试，或在导出CSS后应用到目标站点验证效果。
               </div>
             </div>
@@ -669,18 +669,18 @@ body {
   font-size: 11px;
   line-height: 1.5;
   color: #fde68a;
-  z-index: 100;
-  pointer-events: none;
+  z-index: 9999;
   opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
   transform: translateY(-4px);
-  animation: tooltipFadeIn 0.2s ease forwards;
+  transition: opacity 0.18s ease, transform 0.18s ease, visibility 0.18s;
 }
 
-@keyframes tooltipFadeIn {
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+.inject-mode-badge.degraded:hover .inject-tooltip {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
 }
 
 .inject-tooltip strong {

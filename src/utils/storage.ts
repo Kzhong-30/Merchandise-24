@@ -1,13 +1,24 @@
-import type { DarkModeConfig } from '../types'
+import type { DarkModeConfig, ColorMappingApplyTo } from '../types'
 import { generateId } from './colorUtils'
 
 const STORAGE_KEY = 'darkmode_previewer_configs'
 const ACTIVE_KEY = 'darkmode_previewer_active'
 
+function ensureApplyTo(configs: DarkModeConfig[]): DarkModeConfig[] {
+  return configs.map((cfg) => ({
+    ...cfg,
+    colorMappings: cfg.colorMappings.map((m) => ({
+      ...m,
+      applyTo: (m.applyTo as ColorMappingApplyTo) ?? 'both',
+    })),
+  }))
+}
+
 export function getAllConfigs(): DarkModeConfig[] {
   try {
     const data = localStorage.getItem(STORAGE_KEY)
-    return data ? JSON.parse(data) : []
+    const parsed = data ? (JSON.parse(data) as DarkModeConfig[]) : []
+    return ensureApplyTo(parsed)
   } catch {
     return []
   }

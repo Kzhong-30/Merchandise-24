@@ -1,5 +1,5 @@
 import { ref, reactive, computed, watch, onMounted } from 'vue'
-import type { DarkModeConfig, FilterParams, ColorMapping, DetectionResult } from '../types'
+import type { DarkModeConfig, FilterParams, ColorMapping, DetectionResult, ColorMappingApplyTo } from '../types'
 import { generateId, normalizeUrl, getDomainFromUrl, smartInvertColorWithFilter } from '../utils/colorUtils'
 import {
   getAllConfigs,
@@ -95,9 +95,13 @@ export function useDarkModePreviewer() {
     const enabledMappings = colorMappings.value.filter((m) => m.enabled)
     if (enabledMappings.length > 0) {
       enabledMappings.forEach((m) => {
-        const selector = m.selector || '*'
+        const selector = m.selector.trim() || 'body'
+        const applyTo = m.applyTo ?? 'both'
+        const decls: string[] = []
+        if (applyTo === 'both' || applyTo === 'color') decls.push(`color: ${m.toColor} !important;`)
+        if (applyTo === 'both' || applyTo === 'background') decls.push(`background-color: ${m.toColor} !important;`)
         lines.push(`${selector} {
-  color: ${m.toColor} !important;
+  ${decls.join('\n  ')}
 }`)
       })
       lines.push('')
@@ -251,7 +255,7 @@ export function useDarkModePreviewer() {
     filterParams.saturate = 100
   }
 
-  function addColorMapping(fromColor?: string, toColor?: string, selector: string = '') {
+  function addColorMapping(fromColor?: string, toColor?: string, selector: string = '', applyTo: ColorMappingApplyTo = 'both') {
     const defaultFrom = fromColor ?? '#ffffff'
     const defaultTo = toColor ?? smartInvertColorWithFilter(defaultFrom, filterParams)
     colorMappings.value.push({
@@ -260,6 +264,7 @@ export function useDarkModePreviewer() {
       toColor: defaultTo,
       selector,
       enabled: true,
+      applyTo,
     })
   }
 
@@ -281,7 +286,10 @@ export function useDarkModePreviewer() {
     filterParams.contrast = config.contrast
     filterParams.hueRotate = config.hueRotate
     filterParams.saturate = config.saturate
-    colorMappings.value = [...config.colorMappings]
+    colorMappings.value = config.colorMappings.map((m) => ({
+      ...m,
+      applyTo: (m.applyTo as ColorMappingApplyTo) ?? 'both',
+    }))
     activeConfigId.value = config.id
     currentConfigName.value = config.name
     setActiveConfigId(config.id)

@@ -44,10 +44,15 @@ export function generateColorMappingCSS(mappings: ColorMapping[]): string {
   const rules: string[] = []
 
   enabledMappings.forEach((mapping) => {
-    const selector = mapping.selector || '*'
+    const selector = mapping.selector.trim() || 'body'
+    const applyTo = mapping.applyTo ?? 'both'
+    const decls: string[] = []
+    if (applyTo === 'both' || applyTo === 'color') decls.push(`color: ${mapping.toColor} !important;`)
+    if (applyTo === 'both' || applyTo === 'background') decls.push(`background-color: ${mapping.toColor} !important;`)
     rules.push(`${selector} {
   --dm-color-${mapping.id}-from: ${mapping.fromColor};
   --dm-color-${mapping.id}-to: ${mapping.toColor};
+  ${decls.join('\n  ')}
 }`)
   })
 
@@ -112,22 +117,6 @@ html.dark [data-darkmode-ignore] {
     }
     lines.push('')
   }
-
-  mappings
-    .filter((m) => m.enabled && m.selector)
-    .forEach((mapping) => {
-      const selector = useMediaQuery
-        ? `@media (prefers-color-scheme: dark) {
-  ${mapping.selector} {
-    color: ${mapping.toColor} !important;
-  }
-}`
-        : `html.dark ${mapping.selector} {
-  color: ${mapping.toColor} !important;
-}`
-      lines.push(selector)
-      lines.push('')
-    })
 
   lines.push('/* Background Overrides */')
   const bgOverrides = useMediaQuery

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { ColorMapping } from '../types'
+import type { ColorMapping, ColorMappingApplyTo } from '../types'
 
 defineProps<{
   mappings: ColorMapping[]
@@ -10,6 +10,12 @@ const emit = defineEmits<{
   (e: 'remove', id: string): void
   (e: 'update', id: string, updates: Partial<ColorMapping>): void
 }>()
+
+const APPLY_TO_OPTIONS: Array<{ value: ColorMappingApplyTo; label: string }> = [
+  { value: 'both', label: '两者' },
+  { value: 'color', label: '文字' },
+  { value: 'background', label: '背景' },
+]
 
 function onCheckboxChange(mappingId: string, event: Event) {
   const target = event.target as HTMLInputElement
@@ -29,6 +35,10 @@ function onColorChange(mappingId: string, field: 'fromColor' | 'toColor', event:
 function onSelectorInput(mappingId: string, event: Event) {
   const target = event.target as HTMLInputElement
   emit('update', mappingId, { selector: target.value })
+}
+
+function onApplyToChange(mappingId: string, value: ColorMappingApplyTo) {
+  emit('update', mappingId, { applyTo: value })
 }
 </script>
 
@@ -142,14 +152,39 @@ function onSelectorInput(mappingId: string, event: Event) {
         </div>
 
         <div class="selector-field">
-          <label>CSS 选择器（可选）</label>
+          <label>CSS 选择器（推荐必填）</label>
           <input
             type="text"
             class="selector-input"
-            placeholder="例如：.header, h1, #main"
+            :class="{ warn: !mapping.selector.trim() }"
+            placeholder="例如：body, .container, .header, h1"
             :value="mapping.selector"
             @input="onSelectorInput(mapping.id, $event)"
           />
+          <p v-if="!mapping.selector.trim()" class="selector-warn">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+              <line x1="12" y1="9" x2="12" y2="13" />
+              <line x1="12" y1="17" x2="12.01" y2="17" />
+            </svg>
+            留空将使用 body 兜底，避免通配符 * 导致的性能问题
+          </p>
+        </div>
+
+        <div class="applyto-field">
+          <label>应用范围</label>
+          <div class="segmented-control">
+            <button
+              v-for="opt in APPLY_TO_OPTIONS"
+              :key="opt.value"
+              class="segment-btn"
+              :class="{ active: (mapping.applyTo ?? 'both') === opt.value }"
+              type="button"
+              @click="onApplyToChange(mapping.id, opt.value)"
+            >
+              {{ opt.label }}
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -436,8 +471,73 @@ function onSelectorInput(mappingId: string, event: Event) {
   border-color: var(--accent-color);
 }
 
+.selector-input.warn {
+  border-color: rgba(245, 158, 11, 0.5);
+  background: rgba(245, 158, 11, 0.04);
+}
+
 .selector-input::placeholder {
   color: var(--text-muted);
   opacity: 0.7;
+}
+
+.selector-warn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin: 4px 0 0;
+  padding: 0;
+  font-size: 11px;
+  color: #f59e0b;
+  line-height: 1.4;
+}
+
+.applyto-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 14px;
+}
+
+.applyto-field label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.segmented-control {
+  display: inline-flex;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 7px;
+  padding: 3px;
+  gap: 2px;
+  width: fit-content;
+}
+
+.segment-btn {
+  padding: 5px 14px;
+  font-size: 12px;
+  font-weight: 500;
+  background: transparent;
+  color: var(--text-secondary);
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.segment-btn:hover {
+  color: var(--text-primary);
+  background: rgba(139, 92, 246, 0.05);
+}
+
+.segment-btn.active {
+  background: var(--accent-color);
+  color: white;
+  box-shadow: 0 2px 8px rgba(139, 92, 246, 0.25);
 }
 </style>

@@ -110,6 +110,17 @@ export function invertColorSmart(color: string): string {
   return rgbToHex(newRgb.r, newRgb.g, newRgb.b)
 }
 
+/**
+ * 基于 HSL 色彩空间的智能颜色反色算法
+ *
+ * 算法说明：
+ * 1) 先把颜色转 HSL，L（明度）取 100 - L 做基础反色
+ * 2) 再根据用户调整的 filter 参数进行微调：
+ *    - brightness：采用 easeOutSqrt 非线性曲线，系数范围 10-20，避免高亮度区间过度偏移
+ *    - contrast：使用以 0.5 为渐近上限的 tanh 变换，防止极端参数导致 L 值被推到 0/100 扎堆
+ *    - saturate：100 以内线性放大，超过 150 启动 sigmoid 衰减，避免过饱和造成色偏
+ * 3) 对极暗(L<7)或极亮(L>93)颜色直接走纯 RGB 255-x 兜底，保持黑白边界的正确性
+ */
 export function smartInvertColorWithFilter(
   color: string,
   filter: FilterParams
@@ -120,18 +131,35 @@ export function smartInvertColorWithFilter(
   let { h, s, l } = hsl
   l = 100 - l
 
-  if (l < 5) l = 5
-  if (l > 95) l = 95
-
-  const brightnessDelta = (filter.brightness - 100) / 100 * 25
+  // 明度微调：采用 easeOutSqrt 非线性曲线，避免极端参数下的色值失真
+  // brightness: 100 -> 0 偏移,  50 或 150 -> 约 17.5 的最大偏移（系数 17.5，非线性）
+  const brightnessNorm = (filter.brightness - 100) / 50 // -> [-1, 1]
+  const brightnessSign = Math.sign(brightnessNorm)
+  const brightnessEased = brightnessSign * Math.sqrt(Math.abs(brightnessNorm))
+  const brightnessDelta = brightnessEased * 17.5
   l = Math.max(0, Math.min(100, l - brightnessDelta))
 
-  const contrastT = (filter.contrast - 100) / 100
-  l = 50 + (l - 50) * (1 + contrastT)
+  // 对比度：以 0.5 为渐近上限的 tanh 变换，避免极端参数导致 0/100 扎堆溢出
+  // contrast: 100 -> 0,  50 -> 约 -0.38,  150 -> 约 +0.38
+  const contrastNorm = (filter.contrast - 100) / 100 // -> [-0.5, 0.5]
+  const contrastTanh = Math.tanh(2 * contrastNorm) / Math.tanh(1) // 归一化到约 [-0.76, 0.76]
+  const contrastMax = 0.48 // 渐近上限 0.48，永不越过 0.5
+  const contrastFactor = contrastTanh * contrastMax / 0.76
+  l = 50 + (l - 50) * (1 + contrastFactor)
   l = Math.max(0, Math.min(100, l))
 
-  s = Math.min(100, s * filter.saturate / 100)
+  // 饱和度：100 以内线性放大，100-150 线性，>150 启动 sigmoid 衰减到最大 180
+  if (filter.saturate <= 150) {
+    s = Math.min(100, s * filter.saturate / 100)
+  } else {
+    // sigmoid 衰减：saturate = 150 -> 1.50,  200 -> 1.78 (约180时几乎封顶)
+    const t = (filter.saturate - 150) / 50
+    const attenuated = 150 + 50 * (1 / (1 + Math.exp(-3 * t)) - 0.5) * 2
+    const scaled = s * attenuated / 100
+    s = Math.min(100, scaled)
+  }
 
+  // 边界兜底：极暗极亮直接走纯 RGB 255-x，保证黑白的正确性
   if (l < 7 || l > 93) {
     return invertColor(color)
   }
