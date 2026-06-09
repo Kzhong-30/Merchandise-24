@@ -11,22 +11,22 @@ const emit = defineEmits<{
   (e: 'update', id: string, updates: Partial<ColorMapping>): void
 }>()
 
-const APPLY_TO_OPTIONS: Array<{ value: ColorMappingApplyTo; label: string; icon: string }> = [
-  {
-    value: 'both',
-    label: '两者',
-    icon: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="14" height="14" rx="2" opacity="0.4"/><rect x="7" y="7" width="14" height="14" rx="2"/></svg>'
-  },
-  {
-    value: 'color',
-    label: '文字',
-    icon: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7V4h16v3"/><path d="M9 20h6"/><path d="M12 4v16"/></svg>'
-  },
-  {
-    value: 'background',
-    label: '背景',
-    icon: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 20H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2z"/><path d="M7 10l3-3 4 4 3-3 3 3"/></svg>'
-  },
+// 所有语义图标的共享配置；如需统一调整 stroke 粗细 / 尺寸 / 圆角端点，仅改此处一处
+const SVG_COMMON_ATTRS = {
+  width: '12',
+  height: '12',
+  viewBox: '0 0 24 24',
+  fill: 'none',
+  stroke: 'currentColor',
+  'stroke-width': '2.2',
+  'stroke-linecap': 'round' as const,
+  'stroke-linejoin': 'round' as const,
+}
+
+const APPLY_TO_OPTIONS: Array<{ value: ColorMappingApplyTo; label: string }> = [
+  { value: 'both', label: '两者' },
+  { value: 'color', label: '文字' },
+  { value: 'background', label: '背景' },
 ]
 
 function onCheckboxChange(mappingId: string, event: Event) {
@@ -194,7 +194,24 @@ function onApplyToChange(mappingId: string, value: ColorMappingApplyTo) {
               type="button"
               @click="onApplyToChange(mapping.id, opt.value)"
             >
-              <span class="segment-icon" v-html="opt.icon"></span>
+              <span class="segment-icon">
+                <!-- 两者：两个错位叠放的矩形（下层半透明） -->
+                <svg v-if="opt.value === 'both'" v-bind="SVG_COMMON_ATTRS">
+                  <rect x="3" y="3" width="14" height="14" rx="2" opacity="0.4"/>
+                  <rect x="7" y="7" width="14" height="14" rx="2"/>
+                </svg>
+                <!-- 文字：T 字形（顶横+底横+中竖） -->
+                <svg v-else-if="opt.value === 'color'" v-bind="SVG_COMMON_ATTRS">
+                  <path d="M4 7V4h16v3"/>
+                  <path d="M9 20h6"/>
+                  <path d="M12 4v16"/>
+                </svg>
+                <!-- 背景：卡片外框 + 山形折线 -->
+                <svg v-else-if="opt.value === 'background'" v-bind="SVG_COMMON_ATTRS">
+                  <path d="M20 20H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2z"/>
+                  <path d="M7 10l3-3 4 4 3-3 3 3"/>
+                </svg>
+              </span>
               <span>{{ opt.label }}</span>
             </button>
           </div>
